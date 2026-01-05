@@ -4,5 +4,8 @@ set -o errexit
 
 pip install -r requirements.txt
 
+mkdir -p media/items media/avatars
+
 python manage.py collectstatic --no-input
 python manage.py migrate
+python manage.py initadmin

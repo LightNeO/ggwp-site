@@ -28,6 +28,7 @@ class Item(models.Model):
     description = models.TextField()
     image = models.ImageField(upload_to="items/", blank=True, null=True)
     status = models.CharField(max_length=20, default="active")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
@@ -43,3 +44,4 @@ class Order(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, default="completed")
+    created_at = models.DateTimeField(auto_now_add=True)

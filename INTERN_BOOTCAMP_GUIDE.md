@@ -37,14 +37,14 @@ python -m venv venv
 
 # File: requirements.txt
 django==5.0.1
-djangorestframework
-psycopg2-binary # This is the PostgreSQL driver!
-python-dotenv
-stripe
-pillow
-djoser
-gunicorn
-whitenoise
+djangorestframework==3.15.2
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+stripe==11.4.0
+pillow>=11.0.0
+djoser==2.3.1
+gunicorn==23.0.0
+whitenoise==6.8.2
 
 pip install -r requirements.txt
 ```
@@ -86,6 +86,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-is-...")
 DEBUG = os.getenv("DEBUG", "True") == "True"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost 127.0.0.1 .render.com").split()
+
+# Render Production Specifics
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if "render.com" in h or "onrender.com" in h]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = not DEBUG
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -139,6 +148,13 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL, MEDIA_ROOT = "/media/", BASE_DIR / "media"
 STRIPE_PUBLIC_KEY = os.getenv("STRIPE_PUBLIC_KEY")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': { 'console': { 'class': 'logging.StreamHandler' } },
+    'root': { 'handlers': ['console'], 'level': 'INFO' },
+}
 ```
 
 ---
@@ -201,6 +217,7 @@ class Item(models.Model):
     description = models.TextField()
     image = models.ImageField(upload_to="items/", blank=True, null=True)
     status = models.CharField(max_length=20, default="active")
+    created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self): return self.title
 
 class Order(models.Model):
@@ -209,6 +226,7 @@ class Order(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, default="completed")
+    created_at = models.DateTimeField(auto_now_add=True)
 ```
 
 ---
@@ -313,6 +331,14 @@ urlpatterns = [
     path("login/", login_view),
     path("register/", register_view),
 ]
+
+from django.views.static import serve
+from django.urls import re_path
+from django.conf import settings
+
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
 ```
 
 ---
@@ -382,17 +408,94 @@ git push -u origin main
 #!/usr/bin/env bash
 set -o errexit
 pip install -r requirements.txt
+mkdir -p media/items media/avatars
 python manage.py collectstatic --no-input
 python manage.py migrate
+python manage.py initadmin
 ```
 
-### 10.3 Render Setup
-1. **Database**: Create a "New PostgreSQL" database on Render. Render will host the server for you.
-2. **Web Service**: Create a "New Web Service" linked to your GitHub repo.
-   - **Build Command**: `./build.sh`
-   - **Start Command**: `gunicorn config.wsgi:application`
-3. **Connect to DB**: Render provides the credentials in the dashboard. Add these to your Web Service "Env" tab:
-   - `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`.
-   - Also add `SECRET_KEY`, `DEBUG`=False, `ALLOWED_HOSTS`.
+### 10.3 Render Setup in Detail
 
-Congratulations! You've build and deployed a modern digital marketplace using PostgreSQL! 🌐
+#### Step 1: Create the Cloud Database
+1. Go to your **Render Dashboard** and click **New +** -> **PostgreSQL**.
+2. **Name**: `ggwp-db` (or anything you like).
+3. **Database**: `ggwp_db`
+4. **User**: `postgres` (default)
+5. **Region**: Choose the one closest to you (e.g., Oregon or Frankfurt).
+6. Click **Create Database**.
+7. **CRITICAL**: Once created, find the **Connection Details** section. You will need these for Step 3.
+
+#### Step 2: Create the Web Service
+1. Click **New +** -> **Web Service**.
+2. Connect your **GitHub Repository**.
+3. **Name**: `ggwp-marketplace`
+4. **Environment**: `Python 3`
+5. **Region**: Must be the **SAME** as your database region.
+6. **Branch**: `main`
+7. **Build Command**: `./build.sh`
+8. **Start Command**: `gunicorn config.wsgi:application`
+
+#### Step 3: Configure Environment Variables
+Inside your Web Service, go to the **Env** tab and add these **Secrets**:
+
+| Key | Value Source |
+| :--- | :--- |
+| `SECRET_KEY` | Generate a random 50-character string |
+| `DEBUG` | `False` |
+| `ALLOWED_HOSTS` | `your-app-name.onrender.com` |
+| `DB_NAME` | From Render Postgres "Database" field |
+| `DB_USER` | From Render Postgres "User" field |
+| `DB_PASSWORD` | From Render Postgres "Password" field |
+| `DB_HOST` | From Render Postgres "Hostname" field |
+| `DB_PORT` | `5432` |
+| `STRIPE_PUBLIC_KEY` | Your Stripe Test Public Key |
+| `STRIPE_SECRET_KEY` | Your Stripe Test Secret Key |
+
+#### Step 4: Verify & Launch
+1. Watch the **Logs** in Render. You should see "Collecting static files" and "Applying migrations."
+2. Once the log says `Listening at: http://0.0.0.0:10000`, click your service URL.
+3. **Success**: You are live! Login, list an item, and try a test purchase in production.
+
+#### Step 5: Create a Production Admin User (Free Tier Workaround)
+On the Render Free Tier, the "Shell" is a paid feature. To create your admin user for free, we use a custom script.
+
+**1. Create the Script locally at `core/management/commands/initadmin.py`:**
+```python
+import os
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+
+class Command(BaseCommand):
+    def handle(self, *args, **options):
+        User = get_user_model()
+        username = os.getenv("DJANGO_SUPERUSER_USERNAME", "admin")
+        email = os.getenv("DJANGO_SUPERUSER_EMAIL", "admin@example.com")
+        password = os.getenv("DJANGO_SUPERUSER_PASSWORD", "adminpass123")
+        if not User.objects.filter(username=username).exists():
+            User.objects.create_superuser(username=username, email=email, password=password)
+```
+
+**2. Configure Render:**
+- In your **Render Dashboard**, go to **Web Service** -> **Env**.
+- Add `DJANGO_SUPERUSER_USERNAME` and `DJANGO_SUPERUSER_PASSWORD`.
+- **Save Changes**. Our `build.sh` will now create the admin automatically!
+
+### ⚠️ Important: Production Media Files
+Render's filesystem is **ephemeral**. This means:
+- When you upload an image (Item or Avatar), it will work **immediately**.
+- **BUT**, whenever you redeploy your code or Render restarts your server, those images will **DISAPPEAR**.
+- For a "Real" production app, you would use a service like **Cloudinary** or **AWS S3** to store images permanently. 
+- For this bootcamp, we are serving them directly from the server as a workaround.
+
+#### Final Fix for Images in Chapter 7 (urls.py):
+Ensure your `config/urls.py` explicitly serves media files even when not in DEBUG mode:
+```python
+from django.views.static import serve
+from django.urls import re_path
+# ... at the bottom of the file ...
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
+```
+
+Congratulations! You've built and deployed a modern digital marketplace using PostgreSQL! 🌐
