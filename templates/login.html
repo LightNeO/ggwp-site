@@ -17,10 +17,10 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
             });
-
             if (response.ok) {
                 const data = await response.json();
                 localStorage.setItem('auth_token', data.auth_token);
+                document.cookie = `auth_token=${data.auth_token}; path=/; max-age=86400; SameSite=Lax`;
                 alert('Login Successful!');
                 window.location.href = '/';
             } else {

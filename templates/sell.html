@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 30px; border-radius: 10px;">
+    <h1>List New Item for Sale</h1>
+    <form id="sell-form">
+        <label>Title</label><br>
+        <input type="text" id="title" required style="width: 100%; padding: 10px; margin: 10px 0;"><br>
+        <label>Price ($)</label><br>
+        <input type="number" id="price" step="0.01" required style="width: 100%; padding: 10px; margin: 10px 0;"><br>
+        <label>Description</label><br>
+        <textarea id="description" required
+            style="width: 100%; padding: 10px; margin: 10px 0; height: 100px;"></textarea><br>
+        <label>Game</label><br>
+        <select id="game-select" required style="width: 100%; padding: 10px; margin: 10px 0;">
+            <option value="">Select Game</option>
+        </select><br>
+        <label>Category</label><br>
+        <select id="category-select" required style="width: 100%; padding: 10px; margin: 10px 0;">
+            <option value="">Select Category</option>
+        </select><br>
+        <label>Image</label><br>
+        <input type="file" id="image" style="margin: 10px 0;"><br><br>
+        <button type="submit" style="width: 100%; padding: 15px; font-size: 1.1em;">List Item</button>
+    </form>
+</div>
+<script>
+    (function () {
+        const token = localStorage.getItem('auth_token');
+        if (!token) window.location.href = '/login/';
+        async function loadOptions() {
+            const gameRes = await fetch('/api/games/');
+            const games = await gameRes.json();
+            const gameSelect = document.getElementById('game-select');
+            games.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g.id;
+                opt.textContent = g.name;
+                gameSelect.appendChild(opt);
+            });
+        }
+        document.getElementById('game-select').addEventListener('change', async (e) => {
+            const gameId = e.target.value;
+            const catSelect = document.getElementById('category-select');
+            catSelect.innerHTML = '<option value="">Select Category</option>';
+            if (!gameId) return;
+            const catRes = await fetch(`/api/categories/?game_id=${gameId}`);
+            const cats = await catRes.json();
+            cats.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                catSelect.appendChild(opt);
+            });
+        });
+        document.getElementById('sell-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('title', document.getElementById('title').value);
+            formData.append('price', document.getElementById('price').value);
+            formData.append('description', document.getElementById('description').value);
+            formData.append('category', document.getElementById('category-select').value);
+            const imageFile = document.getElementById('image').files[0];
+            if (imageFile) formData.append('image', imageFile);
+            const response = await fetch('/api/items/create/', {
+                method: 'POST',
+                headers: { 'Authorization': `Token ${token}` },
+                body: formData
+            });
+            if (response.ok) {
+                alert('Item listed successfully!');
+                window.location.href = '/profile/';
+            } else {
+                alert('Error listing item');
+            }
+        };
+        loadOptions();
+    })();
+</script>
+{% endblock %}

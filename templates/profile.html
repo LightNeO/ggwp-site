@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block content %}
+<div style="display: flex; gap: 30px; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 300px; background: #1e1e1e; padding: 25px; border-radius: 10px;">
+        <h2>My Profile</h2>
+        <div id="avatar-container" style="margin-bottom: 20px;"></div>
+        <form id="profile-form">
+            <label>Username</label><br>
+            <input type="text" id="username" style="width: 100%; padding: 10px; margin: 10px 0;"><br>
+            <label>Email</label><br>
+            <input type="email" id="email" style="width: 100%; padding: 10px; margin: 10px 0;"><br>
+            <label>Avatar</label><br>
+            <input type="file" id="avatar-input" style="margin: 10px 0;"><br>
+            <button type="submit" style="width: 100%; padding: 12px; margin-top: 10px;">Update Profile</button>
+        </form>
+    </div>
+    <div style="flex: 2; min-width: 400px;">
+        <div style="background: #1e1e1e; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+            <h3>My Listed Items</h3>
+            <div id="my-items-list">Loading...</div>
+        </div>
+        <div style="background: #1e1e1e; padding: 25px; border-radius: 10px;">
+            <h3>My Purchases</h3>
+            <div id="my-purchases-list">Loading...</div>
+        </div>
+    </div>
+</div>
+<script>
+    (function () {
+        const token = localStorage.getItem('auth_token');
+        if (!token) window.location.href = '/login/';
+        async function loadProfile() {
+            const res = await fetch('/api/profile/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            const data = await res.json();
+            document.getElementById('username').value = data.username;
+            document.getElementById('email').value = data.email || '';
+            if (data.avatar) {
+                document.getElementById('avatar-container').innerHTML = `<img src="${data.avatar}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                document.getElementById('avatar-container').innerHTML = `<div style="width: 100px; height: 100px; border-radius: 50%; background: #333; display: flex; align-items: center; justify-content: center;">No Image</div>`;
+            }
+        }
+        async function loadMyItems() {
+            const res = await fetch('/api/items/my/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            const items = await res.json();
+            const container = document.getElementById('my-items-list');
+            container.innerHTML = '';
+            if (items.length === 0) container.innerHTML = '<p>No items listed yet.</p>';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.borderBottom = '1px solid #333';
+                div.innerHTML = `<strong>${item.title}</strong> - $${item.price} (${item.status})`;
+                container.appendChild(div);
+            });
+        }
+        async function loadPurchases() {
+            const res = await fetch('/api/items/purchased/', {
+                headers: { 'Authorization': `Token ${token}` }
+            });
+            const items = await res.json();
+            const container = document.getElementById('my-purchases-list');
+            container.innerHTML = '';
+            if (items.length === 0) container.innerHTML = '<p>No purchases yet.</p>';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.borderBottom = '1px solid #333';
+                div.innerHTML = `<strong>${item.title}</strong> - $${item.price}`;
+                container.appendChild(div);
+            });
+        }
+        document.getElementById('profile-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('email', document.getElementById('email').value);
+            const avatarFile = document.getElementById('avatar-input').files[0];
+            if (avatarFile) formData.append('avatar', avatarFile);
+            const response = await fetch('/api/profile/', {
+                method: 'PATCH',
+                headers: { 'Authorization': `Token ${token}` },
+                body: formData
+            });
+            if (response.ok) {
+                alert('Profile updated!');
+                loadProfile();
+            } else {
+                alert('Error updating profile');
+            }
+        };
+        loadProfile();
+        loadMyItems();
+        loadPurchases();
+    })();
+</script>
+{% endblock %}

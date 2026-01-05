@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from rest_framework import generics, permissions
+from .serializers import ProfileSerializer
 
 
 def index(request):
@@ -15,3 +17,19 @@ def register_view(request):
 
 def item_detail_view(request, pk):
     return render(request, "item_detail.html")
+
+
+def profile_view(request):
+    return render(request, "profile.html")
+
+
+def sell_view(request):
+    return render(request, "sell.html")
+
+
+class ProfileAPIView(generics.RetrieveUpdateAPIView):
+    serializer_class = ProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user

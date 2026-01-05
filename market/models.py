@@ -21,23 +21,13 @@ class Category(models.Model):
 
 
 class Item(models.Model):
-    STATUS_CHOICES = (
-        ("active", "Active"),
-        ("sold", "Sold"),
-        ("inactive", "Inactive"),
-    )
-    seller = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="items"
-    )
-    category = models.ForeignKey(
-        Category, on_delete=models.CASCADE, related_name="items"
-    )
+    seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField()
     image = models.ImageField(upload_to="items/", blank=True, null=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
-    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, default="active")
 
     def __str__(self):
         return self.title
@@ -45,12 +35,11 @@ class Item(models.Model):
 
 class Order(models.Model):
     buyer = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="buy_orders"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="buys"
     )
     seller = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sell_orders"
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="sales"
     )
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=20, default="pending")
-    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, default="completed")

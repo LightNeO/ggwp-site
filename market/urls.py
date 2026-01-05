@@ -1,7 +1,20 @@
 from django.urls import path
-from . import views
+from .views import (
+    ItemListAPIView,
+    ItemDetailAPIView,
+    ItemCreateAPIView,
+    MyItemsAPIView,
+    MyPurchasesAPIView,
+    GameListAPIView,
+    CategoryListAPIView,
+)
 
 urlpatterns = [
-    path("api/items/", views.ItemListAPIView.as_view(), name="item-list"),
-    path("api/items/<int:pk>/", views.ItemDetailAPIView.as_view(), name="item-detail"),
+    path("api/items/", ItemListAPIView.as_view()),
+    path("api/items/create/", ItemCreateAPIView.as_view()),
+    path("api/items/my/", MyItemsAPIView.as_view()),
+    path("api/items/purchased/", MyPurchasesAPIView.as_view()),
+    path("api/items/<int:pk>/", ItemDetailAPIView.as_view()),
+    path("api/games/", GameListAPIView.as_view()),
+    path("api/categories/", CategoryListAPIView.as_view()),
 ]

@@ -1,7 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
 <h1>Marketplace</h1>
-<!-- Category Filter Buttons -->
 <div style="margin-bottom: 20px;">
     <button onclick="loadItems()">All</button>
     <button onclick="loadItems('dota-2')">Dota 2</button>
@@ -16,16 +15,13 @@
         }
         const response = await fetch(url);
         const items = await response.json();
-
         const list = document.getElementById('items-list');
         list.innerHTML = '';
         items.forEach(item => {
-            // Check if image exists
             const imgHtml = item.image ? `<img src="${item.image}" style="width:100%; height:150px; object-fit:cover;">` : '';
-
             const div = document.createElement('div');
             div.className = 'card';
-            div.style.maxWidth = '250px'; // Make cards smaller
+            div.style.maxWidth = '250px';
             div.style.display = 'inline-block';
             div.style.margin = '10px';
             div.style.verticalAlign = 'top';
